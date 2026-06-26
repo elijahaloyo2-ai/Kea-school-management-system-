@@ -5,7 +5,7 @@ def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 def initialize_database():
-    conn = sqlite3.connect("school_data.db")
+    conn = sqlite3.connect("school_database.db")
     cursor = conn.cursor()
     
     # 1. Students Table
