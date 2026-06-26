@@ -3,7 +3,7 @@ import sqlite3
 import hashlib
 import os
 
-#--- UPGRADED AUTOMATIC DATA DESK SECURITY BOOTLOADER ---
+# --- UPGRADED AUTOMATIC DATA DESK SECURITY BOOTLOADER ---
 # This checks if the file exists AND if the 'users' table is actually inside it.
 # If anything is missing, it automatically creates/repairs the database tables.
 def verify_and_build_database():
@@ -32,14 +32,6 @@ def verify_and_build_database():
 verify_and_build_database()
 
 # Initialize session state variables safely upfront
-if "logged_in" not in st.session_state:
-# ... (the rest of your streamlit_app.py continues exactly the same)
-🎯 What this does to solve your problem:
-It physically logs into school_data.db and scans for the users and students tables.
-
-If it finds an empty database file with no tables, it immediately calls init_db.py to construct every table and re-inject your credentials (Admin / Hellen).
-
-Once you save this, push it to GitHub, and reload your Streamlit Cloud app, your sidebar table scanner will instantly change from Found Tables: [] to displaying your tables, allowing you to add students and teachers smoothly
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 if "username" not in st.session_state:
