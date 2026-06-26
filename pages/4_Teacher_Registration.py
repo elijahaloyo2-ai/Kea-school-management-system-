@@ -43,21 +43,35 @@ with tab_reg:
                     conn.close()
 
 with tab_mod:
-    conn = sqlite3.connect("school_data.db")
-    df_teachers = pd.read_sql_query("SELECT username, full_name, designation FROM users", conn)
-    conn.close()
+    # 💡 Wrapped inside a try-except block to handle database schema mismatches safely
+    try:
+        conn = sqlite3.connect("school_data.db")
+        df_teachers = pd.read_sql_query("SELECT username, full_name, designation FROM users", conn)
+        conn.close()
+    except Exception as db_error:
+        # Fallback to an empty template dataframe if the table doesn't exist yet
+        df_teachers = pd.DataFrame(columns=["username", "full_name", "designation"])
+        st.warning("⚠️ Could not read staff list. Ensure 'init_db.py' has been executed to seed the database tables.")
+        with st.expander("Technical Error Details"):
+            st.code(str(db_error))
+
+    # Display the dataframe safely (it will either show your data or an empty table structure)
     st.dataframe(df_teachers, use_container_width=True)
     
-    selected_user = st.selectbox("Select Account Holder to Modify", df_teachers['username'].tolist())
-    action = st.radio("Operational Objective Type", ["Modify Profile Rank Status", "Revoke Account Profile Access (Transfer Out)"])
-    
-    if action == "Modify Profile Rank Status":
-        new_rank = st.selectbox("Select New Designation Level", DESIGNATIONS, key="mod_rank")
-        if st.button("Apply Structural Rank Assignment"):
-            conn = sqlite3.connect("school_data.db")
-            cursor = conn.cursor()
-            cursor.execute("UPDATE users SET designation = ? WHERE username = ?", (new_rank, selected_user))
-            conn.commit()
-            conn.close()
-            st.success(f"Updated rank profile for {selected_user}.")
-            st.rerun()
+    # Only show interactive elements if we have registered accounts to select
+    if not df_teachers.empty:
+        selected_user = st.selectbox("Select Account Holder to Modify", df_teachers['username'].tolist())
+        action = st.radio("Operational Objective Type", ["Modify Profile Rank Status", "Revoke Account Profile Access (Transfer Out)"])
+        
+        if action == "Modify Profile Rank Status":
+            new_rank = st.selectbox("Select New Designation Level", DESIGNATIONS, key="mod_rank")
+            if st.button("Apply Structural Rank Assignment"):
+                conn = sqlite3.connect("school_data.db")
+                cursor = conn.cursor()
+                cursor.execute("UPDATE users SET designation = ? WHERE username = ?", (new_rank, selected_user))
+                conn.commit()
+                conn.close()
+                st.success(f"Updated rank profile for {selected_user}.")
+                st.rerun()
+    else:
+        st.info("No registered faculty records found to modify.")
