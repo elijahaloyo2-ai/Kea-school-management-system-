@@ -2,6 +2,7 @@ import streamlit as st
 import sqlite3
 import hashlib
 import pandas as pd  # 💡 ADD THIS LINE HERE
+
 # 🔒 GATEKEEPER MODULE: Restricted to System Administrators Only
 if "logged_in" not in st.session_state or not st.session_state["logged_in"]:
     st.warning("🔒 Access Restricted. Please sign in through the Main Command Center page first.")
