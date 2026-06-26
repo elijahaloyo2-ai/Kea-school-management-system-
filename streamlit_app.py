@@ -5,12 +5,12 @@ import os  # 💡 Add this import
 
 # --- AUTOMATIC DATABASE INITIALIZER ---
 # This checks if the database exists. If it doesn't, it automatically builds it!
-if not os.path.exists("school_data.db"):
+if not os.path.exists("school_database.db"):
     try:
         # Import the initialize function from your init_db.py file
         from init_db import initialize_database
         initialize_database()
-        st.toast("🎯 Database successfully initialized for the first time!", icon="💾")
+        st.toast("🎯 database successfully initialized for the first time!", icon="💾")
     except Exception as init_error:
         st.error(f"Failed to auto-initialize database: {init_error}")
 
@@ -92,7 +92,7 @@ def check_login(username, password):
     if username == "Hellen" and password == "Kea@2026":
         return True
         
-    conn = sqlite3.connect("school_data.db")
+    conn = sqlite3.connect("school_database.db")
     cursor = conn.cursor()
     cursor.execute("SELECT password_hash FROM users WHERE username = ?", (username,))
     row = cursor.fetchone()
@@ -102,7 +102,7 @@ def check_login(username, password):
     return False
 
 def fetch_live_dashboard_metrics():
-    conn = sqlite3.connect("school_data.db")
+    conn = sqlite3.connect("school_database.db")
     cursor = conn.cursor()
     
     # 1. Fetch total students count
