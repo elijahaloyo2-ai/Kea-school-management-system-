@@ -1,6 +1,23 @@
 import streamlit as st
 import sqlite3
 import hashlib
+import os  # 💡 Add this import
+
+# --- AUTOMATIC DATABASE INITIALIZER ---
+# This checks if the database exists. If it doesn't, it automatically builds it!
+if not os.path.exists("school_data.db"):
+    try:
+        # Import the initialize function from your init_db.py file
+        from init_db import initialize_database
+        initialize_database()
+        st.toast("🎯 Database successfully initialized for the first time!", icon="💾")
+    except Exception as init_error:
+        st.error(f"Failed to auto-initialize database: {init_error}")
+
+# Initialize session state variables safely upfront
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
+# ... (rest of your streamlit_app.py code continues exactly as before)
 
 # Initialize session state variables safely upfront
 if "logged_in" not in st.session_state:
