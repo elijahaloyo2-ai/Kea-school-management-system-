@@ -58,7 +58,7 @@ def initialize_database():
         FOREIGN KEY(adm_no) REFERENCES students(adm_no) ON DELETE CASCADE
     )""")
     
-    # 5. Global Settings Table (Opening/Closing dates)
+    # 5. Global Settings Table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS global_settings (
         key TEXT PRIMARY KEY,
@@ -82,7 +82,7 @@ def initialize_database():
         key TEXT PRIMARY KEY,
         value TEXT
     )""")
-    cursor.execute("INSERT OR IGNORE INTO contact_info (key, value) VALUES ('map_embed', 'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d15953.242761882655!2d34.4682498!3d-1.0664999!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x183ee374a58b2cd7%3A0x6bd6c7475d4faefc!2sMigori!5e0!3m2!1sen!2ske!4v1700000000000')")
+    cursor.execute("INSERT OR IGNORE INTO contact_info (key, value) VALUES ('map_embed', 'https://www.google.com/maps/embed')")
     
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS co_curricular (
@@ -91,15 +91,25 @@ def initialize_database():
         image_blob BLOB
     )""")
     
-    # Seed Fixed Faculty List allocations to ensure authentication matches assignment maps perfectly
+    # Seed the two Global Administrators with full clearance
+    cursor.execute("""
+        INSERT OR REPLACE INTO users (username, full_name, password_hash, designation)
+        VALUES ('Admin', 'Elijah Aloyo (System Admin)', ?, 'Head of Institution (HOI)')
+    """, (hash_password("Admin@2026"),))
+    
+    cursor.execute("""
+        INSERT OR REPLACE INTO users (username, full_name, password_hash, designation)
+        VALUES ('Hellen', 'Madam Hellen Akinyi Maisori', ?, 'Head of Institution (HOI)')
+    """, (hash_password("Kea@2026"),))
+    
+    # Seed Default Staff Faculty List 
     default_teachers = [
         ("Eliars", "Mr. Eliars Opondo", "Kea@2026", "Teacher"),
         ("Lucas", "Mr. Lucas Onyango", "Kea@2026", "Senior teacher"),
         ("Omwanda", "Mr. Vincent Omwanda", "Kea@2026", "Senior teacher"),
         ("Grace", "Madam Grace Otieno", "Kea@2026", "Teacher"),
         ("EliasA", "Mr. Elias Achiyo", "Kea@2026", "Junior Teacher"),
-        ("Valentine", "Mr. Valentine Tiberius", "Kea@2026", "Junior Teacher"),
-        ("Elijah", "Mr. Elijah Aloyo", "Kea@2026", "Teacher")
+        ("Valentine", "Mr. Valentine Tiberius", "Kea@2026", "Junior Teacher")
     ]
     
     for user, name, pwd, desig in default_teachers:
