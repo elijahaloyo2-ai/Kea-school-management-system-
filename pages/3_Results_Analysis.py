@@ -56,11 +56,55 @@ SUBJECT_MAP = {
     "CREATIVE ARTS & SPORTS (C.A.S)": "cas"
 }
 
-# Pre-calculate totals for analytics processing
+# Fill missing scores with 0 upfront
 subj_cols = list(SUBJECT_MAP.values())
 students_df[subj_cols] = students_df[subj_cols].fillna(0)
-students_df["TOTAL MARKS"] = students_df[subj_cols].sum(axis=1)
-students_df["MEAN SCORE"] = students_df[subj_cols].mean(axis=1)
+
+# Calculate Subject Performance Levels and Points
+def compute_subject_cbc(score):
+    score = score or 0
+    if 89 <= score <= 100: return "EE1", 8
+    if 74 <= score <= 88:  return "EE2", 7
+    if 57 <= score <= 73:  return "ME1", 6
+    if 41 <= score <= 56:  return "ME2", 5
+    if 31 <= score <= 40:  return "AE1", 4
+    if 21 <= score <= 30:  return "AE2", 3
+    if 11 <= score <= 20:  return "BE1", 2
+    return "BE2", 1
+
+# Calculate Global performance levels based on total marks added
+def compute_global_cbc(total_score):
+    total_score = total_score or 0
+    if 786 <= total_score <= 900: return "EE1 (Exceeding Expectation 1)"
+    if 673 <= total_score <= 785: return "EE2 (Exceeding Expectation 2)"
+    if 561 <= total_score <= 672: return "ME1 (Meeting Expectation 1)"
+    if 450 <= total_score <= 560: return "ME2 (Meeting Expectation 2)"
+    if 337 <= total_score <= 449: return "AE1 (Approaching Expectation 1)"
+    if 225 <= total_score <= 336: return "AE2 (Approaching Expectation 2)"
+    if 113 <= total_score <= 224: return "BE1 (Below Expectation 1)"
+    return "BE2 (Below Expectation 2)"
+
+# Compute dynamic totals and point summaries
+total_marks_list = []
+total_points_list = []
+
+for idx, row in students_df.iterrows():
+    t_marks = 0
+    t_points = 0
+    for col in subj_cols:
+        score = row[col]
+        t_marks += score
+        _, pts = compute_subject_cbc(score)
+        t_points += pts
+    total_marks_list.append(t_marks)
+    total_points_list.append(t_points)
+
+students_df["TOTAL MARKS"] = total_marks_list
+students_df["TOTAL POINTS"] = total_points_list
+
+# Dynamic Position/Rank Generator Logic (Ties share same position rank)
+students_df["POSITION"] = students_df["TOTAL MARKS"].rank(method="min", ascending=False).astype(int)
+total_students_count = len(students_df)
 
 # Create Navigation Tabs
 tab_overview, tab_reports = st.tabs(["📊 Grade Performance Overview Analytics", "📜 Student Assessment Report Generator"])
@@ -79,7 +123,7 @@ with tab_overview:
             top_student_row = students_df.loc[students_df[col].idxmax()]
             best_per_subject.append({
                 "Learning Area": subj_name,
-                "Top Student": top_student_row["name"],
+                "Top Performer": top_student_row["name"],
                 "ADM NO": top_student_row["adm_no"],
                 "Highest Score": f"{int(top_student_row[col])}%"
             })
@@ -92,10 +136,9 @@ with tab_overview:
     
     # 2. Top 10 Students Overall Ranking
     with col_rank1:
-        st.markdown("#### 🏅 Top 10 Overall Students")
-        top_10 = students_df.sort_values(by="TOTAL MARKS", ascending=False).head(10)[["adm_no", "name", "TOTAL MARKS", "MEAN SCORE"]]
-        top_10.columns = ["ADM NO", "STUDENT NAME", "TOTAL MARKS", "MEAN %"]
-        top_10["MEAN %"] = top_10["MEAN %"].map(lambda x: f"{x:.1f}%")
+        st.markdown("#### 🏅 Top 10 Overall Students (Ranked by Marks)")
+        top_10 = students_df.sort_values(by="TOTAL MARKS", ascending=False).head(10)[["POSITION", "adm_no", "name", "TOTAL MARKS", "TOTAL POINTS"]]
+        top_10.columns = ["RANK/POS", "ADM NO", "STUDENT NAME", "TOTAL MARKS (900)", "TOTAL POINTS (72)"]
         st.dataframe(top_10, use_container_width=True, hide_index=True)
 
     # 3. Best Performed Learning Areas (Subject Rankings)
@@ -115,33 +158,25 @@ with tab_overview:
 # =========================================================
 with tab_reports:
     
-    # Helper to calculate CBC Levels based on actual raw percentages
-    def compute_cbc_level(score):
-        score = score or 0
-        if score >= 80: return "EE (Exceeding Expectation)"
-        if score >= 50: return "ME (Meeting Expectation)"
-        if score >= 30: return "AE (Approaching Expectation)"
-        return "BE (Below Expectation)"
-
     # Intelligent Auto-Comment Generator Engine
-    def generate_teacher_comment(mean_score):
-        if mean_score >= 80:
-            return "An excellent performance! Demonstrates outstanding mastery of all learning areas."
-        elif mean_score >= 65:
-            return "A very good performance. Consistently meets expectations. Keep up the steady effort."
-        elif mean_score >= 50:
-            return "Good progress made. Possesses room for improvement with targeted revision in weak areas."
-        elif mean_score >= 35:
-            return "Approaching expectations. Requires close monitoring and more remedial support next term."
+    def generate_teacher_comment(total_score):
+        if total_score >= 786:
+            return "Exceptional academic performance! Exhibits exemplary mastery and concept application."
+        elif total_score >= 673:
+            return "Excellent work! Maintains highly commendable performance. Keep striving for the peak."
+        elif total_score >= 561:
+            return "Very good progress made. Consistently meets standards. Aim for higher grades next term."
+        elif total_score >= 450:
+            return "Good performance, but has potential to do much better. Focus on targets for improvement."
+        elif total_score >= 337:
+            return "Fair performance. Approaching targeted levels but requires more intensive practice."
         else:
-            return "Below expectations. Immediate academic intervention and intensive practice are highly advised."
+            return "Below expectations. Needs focused remedial support and close academic monitoring."
 
     # --- DYNAMIC CBC REPORT CARD GENERATION ENGINE ---
-    def generate_student_report_card(row, close_dt, open_dt):
+    def generate_student_report_card(row, close_dt, open_dt, total_students):
         img = Image.new("RGB", (800, 1150), color="#FFFFFF")
         draw = ImageDraw.Draw(img)
-        
-        # Safe structural fallback typography system
         font = ImageFont.load_default()
 
         # 1. INSTITUTIONAL HEADER BLOCK
@@ -150,7 +185,7 @@ with tab_reports:
         draw.text((400, 95), "STUDENT ASSESSMENT REPORT FORM", fill="#1E293B", anchor="mm")
         draw.line([(40, 120), (760, 120)], fill="#CBD5E1", width=2)
         
-        # 2. BIO DATA SECTION
+        # 2. BIO DATA SECTION WITH RANK POSITION FIELD INCLUDED
         draw.text((50, 140), "STUDENT NAME:", fill="#64748B")
         draw.text((180, 140), str(row['name']).upper(), fill="#0F172A")
         draw.text((50, 175), "ADM NO:", fill="#64748B")
@@ -160,18 +195,19 @@ with tab_reports:
 
         draw.text((480, 140), "CLASS / GRADE:", fill="#64748B")
         draw.text((620, 140), str(row['grade']), fill="#0F172A")
-        draw.text((480, 175), "TERM:", fill="#64748B")
-        draw.text((620, 175), "TERM 2", fill="#0F172A")
-        draw.text((480, 210), "YEAR:", fill="#64748B")
-        draw.text((620, 210), "2026", fill="#0F172A")
+        draw.text((480, 175), "CLASS POSITION:", fill="#1E3A8A")
+        draw.text((620, 175), f"POS {row['POSITION']} OUT OF {total_students}", fill="#0F172A")
+        draw.text((480, 210), "TERM / YEAR:", fill="#64748B")
+        draw.text((620, 210), "TERM 2 / 2026", fill="#0F172A")
 
         # 3. TABLE HEADERS
         table_top = 260
         draw.rectangle([(40, table_top), (760, table_top + 35)], fill="#1E3A8A")
         draw.text((60, table_top + 10), "S/N", fill="#FFFFFF")
         draw.text((120, table_top + 10), "LEARNING AREA / SUBJECT", fill="#FFFFFF")
-        draw.text((480, table_top + 10), "SCORE (%)", fill="#FFFFFF")
-        draw.text((620, table_top + 10), "PERFORMANCE LEVEL", fill="#FFFFFF")
+        draw.text((440, table_top + 10), "SCORE", fill="#FFFFFF")
+        draw.text((530, table_top + 10), "LEVEL", fill="#FFFFFF")
+        draw.text((660, table_top + 10), "POINTS", fill="#FFFFFF")
         
         subjects_list = [
             ("901", "ENGLISH", row.get('english', 0)),
@@ -186,39 +222,42 @@ with tab_reports:
         ]
         
         current_y = table_top + 35
-        total_score = 0
-        valid_subjects_count = 0
         
         for idx, (code, subject_name, mark) in enumerate(subjects_list, start=1):
             mark_val = mark if mark is not None else 0
-            total_score += mark_val
-            valid_subjects_count += 1
+            lvl, pts = compute_subject_cbc(mark_val)
             
             if idx % 2 == 0:
                 draw.rectangle([(40, current_y), (760, current_y + 35)], fill="#F8FAFC")
                 
             draw.text((60, current_y + 10), str(idx), fill="#334155")
             draw.text((120, current_y + 10), f"({code}) {subject_name}", fill="#0F172A")
-            draw.text((500, current_y + 10), f"{int(mark_val)}%", fill="#0F172A")
-            draw.text((620, current_y + 10), compute_cbc_level(mark_val), fill="#1E3A8A")
+            draw.text((440, current_y + 10), f"{int(mark_val)}%", fill="#0F172A")
+            draw.text((530, current_y + 10), lvl, fill="#1E3A8A")
+            draw.text((670, current_y + 10), f"{pts} Pts", fill="#475569")
             
             draw.line([(40, current_y + 35), (760, current_y + 35)], fill="#E2E8F0", width=1)
             current_y += 35
 
-        # 4. TOTALS BAR
+        # 4. TOTALS SUMMARY METRIC DECK
         current_y += 15
         draw.rectangle([(40, current_y), (760, current_y + 40)], fill="#F1F5F9")
-        draw.text((60, current_y + 12), f"TOTAL MARKS SCORED: {int(total_score)}", fill="#1E3A8A")
+        draw.text((60, current_y + 12), f"TOTAL MARKS: {int(row['TOTAL MARKS'])} / 900", fill="#1E3A8A")
+        draw.text((320, current_y + 12), f"TOTAL POINTS: {int(row['TOTAL POINTS'])} / 72", fill="#1E3A8A")
         
-        mean_score = total_score / valid_subjects_count if valid_subjects_count > 0 else 0
-        draw.text((420, current_y + 12), f"OVERALL ASSESSMENT: {compute_cbc_level(mean_score)}", fill="#1E3A8A")
+        global_lvl = compute_global_cbc(row['TOTAL MARKS'])
+        draw.text((540, current_y + 12), f"GRADE: {global_lvl.split(' ')[0]}", fill="#1E3A8A")
         current_y += 40
 
+        # Global Grade Full Text Callout
+        current_y += 15
+        draw.text((50, current_y), f"OVERALL PERFORMANCE LEVEL VALUE:  {global_lvl}", fill="#0F172A")
+
         # 5. DYNAMIC TEACHER COMMENTS SECTION
-        current_y += 25
+        current_y += 35
         draw.text((50, current_y), "CLASS TEACHER GENERAL COMMENT:", fill="#1E3A8A")
         current_y += 25
-        comment_text = generate_teacher_comment(mean_score)
+        comment_text = generate_teacher_comment(row['TOTAL MARKS'])
         draw.text((50, current_y), f'"{comment_text}"', fill="#0F172A")
         
         # 6. DYNAMIC TERM CALENDAR DATES
@@ -226,7 +265,7 @@ with tab_reports:
         draw.text((50, current_y), f"TERM CLOSING DATE:  {close_dt}", fill="#475569")
         draw.text((450, current_y), f"NEXT TERM OPENING DATE:  {open_dt}", fill="#475569")
         
-        # 7. SIGNATURES & STAMP INJECTION OVERLAY
+        # 7. SIGNATURES & STAMP BACKGROUND REMOVER INJECTION
         current_y += 75
         draw.text((50, current_y), "CLASS TEACHER SIGNATURE: _______________________", fill="#475569")
         
@@ -234,8 +273,7 @@ with tab_reports:
         hoi_line_y = current_y
         draw.text((50, hoi_line_y + 25), "HOI STAMP & SIGNATURE:     _______________________", fill="#475569")
         
-        # Stamp Overlay Injection Engine logic
-        # Looks for files matching 'stamp' extension formats safely
+        # Look for the physical stamp file across extension formats safely
         stamp_path = None
         for file_ext in ["stamp.png", "stamp.jpg", "stamp.jpeg", "stamp.photo"]:
             if os.path.exists(file_ext):
@@ -245,12 +283,27 @@ with tab_reports:
         if stamp_path:
             try:
                 stamp_img = Image.open(stamp_path).convert("RGBA")
-                # Resize stamp proportionally to fit neatly over the line
+                
+                # --- BACKGROUND REMOVAL LOGIC ---
+                # Converts nearly white pixels (like scanner sheet background artifacts) 
+                # into 100% see-through alpha channel pixels automatically
+                datas = stamp_img.getdata()
+                newData = []
+                for item in datas:
+                    # If pixel is bright white/near-white, swap it for transparency
+                    if item[0] > 220 and item[1] > 220 and item[2] > 220:
+                        newData.append((255, 255, 255, 0))
+                    else:
+                        newData.append(item)
+                stamp_img.putdata(newData)
+                
+                # Resize stamp proportionally
                 stamp_img.thumbnail((120, 120))
-                # Paste stamp right above the HOI line safely
-                img.paste(stamp_img, (270, hoi_line_y - 30), stamp_img)
+                
+                # Paste the transparent stamp *next* to the HOI line instead of in front
+                img.paste(stamp_img, (240, hoi_line_y - 45), stamp_img)
             except Exception:
-                pass # Skip overlay smoothly if image asset file format is unreadable
+                pass
         
         byte_arr = io.BytesIO()
         img.save(byte_arr, format="PNG")
@@ -268,8 +321,8 @@ with tab_reports:
         
         student_row = students_df[students_df["name"] == selected_student_name].iloc[0]
         
-        with st.spinner("Generating crisp dynamic report form layout..."):
-            report_bytes = generate_student_report_card(student_row, closing_date, opening_date)
+        with st.spinner("Generating dynamic report card with stamp background removal..."):
+            report_bytes = generate_student_report_card(student_row, closing_date, opening_date, total_students_count)
             
         st.image(report_bytes, caption=f"Preview Evaluation Form: {selected_student_name}", use_container_width=True)
         st.download_button(
@@ -280,18 +333,18 @@ with tab_reports:
         )
 
     elif display_mode == "Complete Classroom Batch Processing Grid":
-        st.success(f"Verified {len(students_df)} classroom profiles ready for automatic batch rendering.")
+        st.success(f"Verified {total_students_count} classroom profiles ready for automatic batch rendering.")
         
         if st.button("🚀 Process & Generate All Classroom Reports", type="primary"):
             for idx, row in students_df.iterrows():
                 with st.spinner(f"Rendering: {row['name']}..."):
-                    r_bytes = generate_student_report_card(row, closing_date, opening_date)
+                    r_bytes = generate_student_report_card(row, closing_date, opening_date, total_students_count)
                     
-                st.write(f"✅ **{row['name']}** (ADM NO: {row['adm_no']})")
+                st.write(f"✅ **{row['name']}** (ADM NO: {row['adm_no']} — POSITION: {row['POSITION']})")
                 st.download_button(
                     label=f"Download Report Card: {row['name']}",
                     data=r_bytes,
                     file_name=f"Report_{row['adm_no']}.png",
                     key=f"dl_batch_{row['adm_no']}",
                     mime="image/png"
-    )
+)
