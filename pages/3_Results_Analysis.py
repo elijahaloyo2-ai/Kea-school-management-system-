@@ -4,6 +4,7 @@ import pandas as pd
 from PIL import Image, ImageDraw, ImageFont
 import io
 import os
+import urllib.request
 
 # 🔒 Check Session Authorization
 if "logged_in" not in st.session_state or not st.session_state["logged_in"]:
@@ -173,41 +174,73 @@ with tab_reports:
         else:
             return "Below expectations. Needs focused remedial support and close academic monitoring."
 
+    # Dynamic Times New Roman Loader with Server Fail-safes
+    @st.cache_data
+    def load_times_new_roman_font(size):
+        # Local system search array paths
+        font_paths = [
+            "C:\\Windows\\Fonts\\times.ttf",          # Windows path
+            "C:\\Windows\\Fonts\\timesbd.ttf",        # Windows Bold variant
+            "/usr/share/fonts/truetype/msttcorefonts/Times_New_Roman.ttf", # Linux Debian/Ubuntu path
+            "/System/Library/Fonts/Supplemental/Times New Roman.ttf"       # MacOS path
+        ]
+        for path in font_paths:
+            if os.path.exists(path):
+                return ImageFont.truetype(path, size)
+        
+        # Cloud/Server Fail-safe: Download font file directly to server memory if local paths don't exist
+        local_download_path = "times_new_roman.ttf"
+        if not os.path.exists(local_download_path):
+            try:
+                url = "https://raw.githubusercontent.com/Descent098/fonts/master/TTF/Times%20New%20Roman/Times%20New%20Roman.ttf"
+                urllib.request.urlretrieve(url, local_download_path)
+            except Exception:
+                return ImageFont.load_default() # Absolute fallback to prevent app crashes
+                
+        if os.path.exists(local_download_path):
+            return ImageFont.truetype(local_download_path, size)
+        return ImageFont.load_default()
+
     # --- DYNAMIC CBC REPORT CARD GENERATION ENGINE ---
     def generate_student_report_card(row, close_dt, open_dt, total_students):
         img = Image.new("RGB", (800, 1150), color="#FFFFFF")
         draw = ImageDraw.Draw(img)
-        font = ImageFont.load_default()
+        
+        # Load fonts at customizable scale sizes
+        font_title = load_times_new_roman_font(28)      # Large standout font for school name
+        font_subtitle = load_times_new_roman_font(15)   # Sub-headers
+        font_body = load_times_new_roman_font(13)       # Clean table body and metrics data
 
-        # 1. INSTITUTIONAL HEADER BLOCK
-        draw.text((400, 40), "KEA COMPREHENSIVE SCHOOL", fill="#1E3A8A", anchor="mm")
-        draw.text((400, 65), "P.O. BOX 557-40404, SUNA MIGORI", fill="#475569", anchor="mm")
-        draw.text((400, 95), "STUDENT ASSESSMENT REPORT FORM", fill="#1E293B", anchor="mm")
-        draw.line([(40, 120), (760, 120)], fill="#CBD5E1", width=2)
+        # 1. INSTITUTIONAL HEADER BLOCK (Times New Roman Upgrades)
+        draw.text((400, 45), "KEA COMPREHENSIVE SCHOOL", fill="#1E3A8A", anchor="mm", font=font_title)
+        draw.text((400, 75), "P.O. BOX 557-40404, SUNA MIGORI", fill="#475569", anchor="mm", font=font_subtitle)
+        draw.text((400, 100), "STUDENT ASSESSMENT REPORT FORM", fill="#1E293B", anchor="mm", font=font_subtitle)
+        draw.line([(40, 125), (760, 125)], fill="#CBD5E1", width=2)
         
         # 2. BIO DATA SECTION WITH RANK POSITION FIELD INCLUDED
-        draw.text((50, 140), "STUDENT NAME:", fill="#64748B")
-        draw.text((180, 140), str(row['name']).upper(), fill="#0F172A")
-        draw.text((50, 175), "ADM NO:", fill="#64748B")
-        draw.text((180, 175), str(row['adm_no']), fill="#0F172A")
-        draw.text((50, 210), "ASSESSMENT NO:", fill="#64748B")
-        draw.text((180, 210), str(row['assessment_no']) if row['assessment_no'] else "N/A", fill="#0F172A")
+        bio_y = 145
+        draw.text((50, bio_y), "STUDENT NAME:", fill="#64748B", font=font_body)
+        draw.text((180, bio_y), str(row['name']).upper(), fill="#0F172A", font=font_body)
+        draw.text((50, bio_y + 30), "ADM NO:", fill="#64748B", font=font_body)
+        draw.text((180, bio_y + 30), str(row['adm_no']), fill="#0F172A", font=font_body)
+        draw.text((50, bio_y + 60), "ASSESSMENT NO:", fill="#64748B", font=font_body)
+        draw.text((180, bio_y + 60), str(row['assessment_no']) if row['assessment_no'] else "N/A", fill="#0F172A", font=font_body)
 
-        draw.text((480, 140), "CLASS / GRADE:", fill="#64748B")
-        draw.text((620, 140), str(row['grade']), fill="#0F172A")
-        draw.text((480, 175), "CLASS POSITION:", fill="#1E3A8A")
-        draw.text((620, 175), f"POS {row['POSITION']} OUT OF {total_students}", fill="#0F172A")
-        draw.text((480, 210), "TERM / YEAR:", fill="#64748B")
-        draw.text((620, 210), "TERM 2 / 2026", fill="#0F172A")
+        draw.text((480, bio_y), "CLASS / GRADE:", fill="#64748B", font=font_body)
+        draw.text((620, bio_y), str(row['grade']), fill="#0F172A", font=font_body)
+        draw.text((480, bio_y + 30), "CLASS POSITION:", fill="#1E3A8A", font=font_body)
+        draw.text((620, bio_y + 30), f"POS {row['POSITION']} OUT OF {total_students}", fill="#0F172A", font=font_body)
+        draw.text((480, bio_y + 60), "TERM / YEAR:", fill="#64748B", font=font_body)
+        draw.text((620, bio_y + 60), "TERM 2 / 2026", fill="#0F172A", font=font_body)
 
         # 3. TABLE HEADERS
-        table_top = 260
+        table_top = 265
         draw.rectangle([(40, table_top), (760, table_top + 35)], fill="#1E3A8A")
-        draw.text((60, table_top + 10), "S/N", fill="#FFFFFF")
-        draw.text((120, table_top + 10), "LEARNING AREA / SUBJECT", fill="#FFFFFF")
-        draw.text((440, table_top + 10), "SCORE", fill="#FFFFFF")
-        draw.text((530, table_top + 10), "LEVEL", fill="#FFFFFF")
-        draw.text((660, table_top + 10), "POINTS", fill="#FFFFFF")
+        draw.text((60, table_top + 10), "S/N", fill="#FFFFFF", font=font_body)
+        draw.text((120, table_top + 10), "LEARNING AREA / SUBJECT", fill="#FFFFFF", font=font_body)
+        draw.text((440, table_top + 10), "SCORE", fill="#FFFFFF", font=font_body)
+        draw.text((530, table_top + 10), "LEVEL", fill="#FFFFFF", font=font_body)
+        draw.text((660, table_top + 10), "POINTS", fill="#FFFFFF", font=font_body)
         
         subjects_list = [
             ("901", "ENGLISH", row.get('english', 0)),
@@ -230,11 +263,11 @@ with tab_reports:
             if idx % 2 == 0:
                 draw.rectangle([(40, current_y), (760, current_y + 35)], fill="#F8FAFC")
                 
-            draw.text((60, current_y + 10), str(idx), fill="#334155")
-            draw.text((120, current_y + 10), f"({code}) {subject_name}", fill="#0F172A")
-            draw.text((440, current_y + 10), f"{int(mark_val)}%", fill="#0F172A")
-            draw.text((530, current_y + 10), lvl, fill="#1E3A8A")
-            draw.text((670, current_y + 10), f"{pts} Pts", fill="#475569")
+            draw.text((60, current_y + 10), str(idx), fill="#334155", font=font_body)
+            draw.text((120, current_y + 10), f"({code}) {subject_name}", fill="#0F172A", font=font_body)
+            draw.text((440, current_y + 10), f"{int(mark_val)}%", fill="#0F172A", font=font_body)
+            draw.text((530, current_y + 10), lvl, fill="#1E3A8A", font=font_body)
+            draw.text((670, current_y + 10), f"{pts} Pts", fill="#475569", font=font_body)
             
             draw.line([(40, current_y + 35), (760, current_y + 35)], fill="#E2E8F0", width=1)
             current_y += 35
@@ -242,36 +275,36 @@ with tab_reports:
         # 4. TOTALS SUMMARY METRIC DECK
         current_y += 15
         draw.rectangle([(40, current_y), (760, current_y + 40)], fill="#F1F5F9")
-        draw.text((60, current_y + 12), f"TOTAL MARKS: {int(row['TOTAL MARKS'])} / 900", fill="#1E3A8A")
-        draw.text((320, current_y + 12), f"TOTAL POINTS: {int(row['TOTAL POINTS'])} / 72", fill="#1E3A8A")
+        draw.text((60, current_y + 12), f"TOTAL MARKS: {int(row['TOTAL MARKS'])} / 900", fill="#1E3A8A", font=font_body)
+        draw.text((320, current_y + 12), f"TOTAL POINTS: {int(row['TOTAL POINTS'])} / 72", fill="#1E3A8A", font=font_body)
         
         global_lvl = compute_global_cbc(row['TOTAL MARKS'])
-        draw.text((540, current_y + 12), f"GRADE: {global_lvl.split(' ')[0]}", fill="#1E3A8A")
+        draw.text((540, current_y + 12), f"GRADE: {global_lvl.split(' ')[0]}", fill="#1E3A8A", font=font_body)
         current_y += 40
 
         # Global Grade Full Text Callout
         current_y += 15
-        draw.text((50, current_y), f"OVERALL PERFORMANCE LEVEL VALUE:  {global_lvl}", fill="#0F172A")
+        draw.text((50, current_y), f"OVERALL PERFORMANCE LEVEL VALUE:  {global_lvl}", fill="#0F172A", font=font_body)
 
         # 5. DYNAMIC TEACHER COMMENTS SECTION
         current_y += 35
-        draw.text((50, current_y), "CLASS TEACHER GENERAL COMMENT:", fill="#1E3A8A")
+        draw.text((50, current_y), "CLASS TEACHER GENERAL COMMENT:", fill="#1E3A8A", font=font_body)
         current_y += 25
         comment_text = generate_teacher_comment(row['TOTAL MARKS'])
-        draw.text((50, current_y), f'"{comment_text}"', fill="#0F172A")
+        draw.text((50, current_y), f'"{comment_text}"', fill="#0F172A", font=font_body)
         
         # 6. DYNAMIC TERM CALENDAR DATES
         current_y += 45
-        draw.text((50, current_y), f"TERM CLOSING DATE:  {close_dt}", fill="#475569")
-        draw.text((450, current_y), f"NEXT TERM OPENING DATE:  {open_dt}", fill="#475569")
+        draw.text((50, current_y), f"TERM CLOSING DATE:  {close_dt}", fill="#475569", font=font_body)
+        draw.text((450, current_y), f"NEXT TERM OPENING DATE:  {open_dt}", fill="#475569", font=font_body)
         
         # 7. SIGNATURES & STAMP BACKGROUND REMOVER INJECTION
         current_y += 75
-        draw.text((50, current_y), "CLASS TEACHER SIGNATURE: _______________________", fill="#475569")
+        draw.text((50, current_y), "CLASS TEACHER SIGNATURE: _______________________", fill="#475569", font=font_body)
         
         current_y += 40
         hoi_line_y = current_y
-        draw.text((50, hoi_line_y + 25), "HOI STAMP & SIGNATURE:     _______________________", fill="#475569")
+        draw.text((50, hoi_line_y + 25), "HOI STAMP & SIGNATURE:     _______________________", fill="#475569", font=font_body)
         
         # Look for the physical stamp file across extension formats safely
         stamp_path = None
@@ -284,13 +317,10 @@ with tab_reports:
             try:
                 stamp_img = Image.open(stamp_path).convert("RGBA")
                 
-                # --- BACKGROUND REMOVAL LOGIC ---
-                # Converts nearly white pixels (like scanner sheet background artifacts) 
-                # into 100% see-through alpha channel pixels automatically
+                # BACKGROUND REMOVAL LOGIC
                 datas = stamp_img.getdata()
                 newData = []
                 for item in datas:
-                    # If pixel is bright white/near-white, swap it for transparency
                     if item[0] > 220 and item[1] > 220 and item[2] > 220:
                         newData.append((255, 255, 255, 0))
                     else:
@@ -300,7 +330,7 @@ with tab_reports:
                 # Resize stamp proportionally
                 stamp_img.thumbnail((120, 120))
                 
-                # Paste the transparent stamp *next* to the HOI line instead of in front
+                # Paste the transparent stamp next to the HOI line instead of in front
                 img.paste(stamp_img, (240, hoi_line_y - 45), stamp_img)
             except Exception:
                 pass
