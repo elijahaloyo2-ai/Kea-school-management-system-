@@ -129,4 +129,4 @@ with tab2:
     else:
         for idx, row in df_marks.iterrows():
             r_bytes = generate_report_canvas(row)
-            st.download_button(f"Download Report: {row['name']}", data=r_bytes, fileName=f"Report_{row['adm_no']}.png", key=f"dl_{row['adm_no']}")
+            st.download_button(f"Download Report: {row['name']}", data=r_bytes, filename=f"Report_{row['adm_no']}.png", key=f"dl_{row['adm_no']}")
