@@ -125,7 +125,7 @@ with tab2:
         row_match = df_marks[df_marks['name'] == target_student].iloc[0]
         report_bytes = generate_report_canvas(row_match)
         st.image(report_bytes)
-        st.download_button(f"📥 Download Report", data=report_bytes, fileName=f"Report_{row_match['adm_no']}.png")
+        st.download_button(f"📥 Download Report", data=report_bytes, filename=f"Report_{row_match['adm_no']}.png")
     else:
         for idx, row in df_marks.iterrows():
             r_bytes = generate_report_canvas(row)
