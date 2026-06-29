@@ -174,31 +174,42 @@ with tab_reports:
         else:
             return "Below expectations. Needs focused remedial support and close academic monitoring."
 
-    # Dynamic Times New Roman Loader with Server Fail-safes
-    @st.cache_data
+    # Thread-safe standard dict cache to avoid pickle errors with Streamlit caching
+    if "font_cache" not in st.session_state:
+        st.session_state["font_cache"] = {}
+
     def load_times_new_roman_font(size):
-        # Local system search array paths
+        cache_key = f"times_{size}"
+        if cache_key in st.session_state["font_cache"]:
+            return st.session_state["font_cache"][cache_key]
+            
         font_paths = [
-            "C:\\Windows\\Fonts\\times.ttf",          # Windows path
-            "C:\\Windows\\Fonts\\timesbd.ttf",        # Windows Bold variant
-            "/usr/share/fonts/truetype/msttcorefonts/Times_New_Roman.ttf", # Linux Debian/Ubuntu path
-            "/System/Library/Fonts/Supplemental/Times New Roman.ttf"       # MacOS path
+            "C:\\Windows\\Fonts\\times.ttf",
+            "C:\\Windows\\Fonts\\timesbd.ttf",
+            "/usr/share/fonts/truetype/msttcorefonts/Times_New_Roman.ttf",
+            "/System/Library/Fonts/Supplemental/Times New Roman.ttf"
         ]
         for path in font_paths:
             if os.path.exists(path):
-                return ImageFont.truetype(path, size)
+                f = ImageFont.truetype(path, size)
+                st.session_state["font_cache"][cache_key] = f
+                return f
         
-        # Cloud/Server Fail-safe: Download font file directly to server memory if local paths don't exist
         local_download_path = "times_new_roman.ttf"
         if not os.path.exists(local_download_path):
             try:
                 url = "https://raw.githubusercontent.com/Descent098/fonts/master/TTF/Times%20New%20Roman/Times%20New%20Roman.ttf"
                 urllib.request.urlretrieve(url, local_download_path)
             except Exception:
-                return ImageFont.load_default() # Absolute fallback to prevent app crashes
+                return ImageFont.load_default()
                 
         if os.path.exists(local_download_path):
-            return ImageFont.truetype(local_download_path, size)
+            try:
+                f = ImageFont.truetype(local_download_path, size)
+                st.session_state["font_cache"][cache_key] = f
+                return f
+            except Exception:
+                return ImageFont.load_default()
         return ImageFont.load_default()
 
     # --- DYNAMIC CBC REPORT CARD GENERATION ENGINE ---
@@ -206,7 +217,7 @@ with tab_reports:
         img = Image.new("RGB", (800, 1150), color="#FFFFFF")
         draw = ImageDraw.Draw(img)
         
-        # Load fonts at customizable scale sizes
+        # Load stable fonts using memory dict cache
         font_title = load_times_new_roman_font(28)      # Large standout font for school name
         font_subtitle = load_times_new_roman_font(15)   # Sub-headers
         font_body = load_times_new_roman_font(13)       # Clean table body and metrics data
@@ -306,7 +317,6 @@ with tab_reports:
         hoi_line_y = current_y
         draw.text((50, hoi_line_y + 25), "HOI STAMP & SIGNATURE:     _______________________", fill="#475569", font=font_body)
         
-        # Look for the physical stamp file across extension formats safely
         stamp_path = None
         for file_ext in ["stamp.png", "stamp.jpg", "stamp.jpeg", "stamp.photo"]:
             if os.path.exists(file_ext):
@@ -316,8 +326,6 @@ with tab_reports:
         if stamp_path:
             try:
                 stamp_img = Image.open(stamp_path).convert("RGBA")
-                
-                # BACKGROUND REMOVAL LOGIC
                 datas = stamp_img.getdata()
                 newData = []
                 for item in datas:
@@ -326,11 +334,7 @@ with tab_reports:
                     else:
                         newData.append(item)
                 stamp_img.putdata(newData)
-                
-                # Resize stamp proportionally
                 stamp_img.thumbnail((120, 120))
-                
-                # Paste the transparent stamp next to the HOI line instead of in front
                 img.paste(stamp_img, (240, hoi_line_y - 45), stamp_img)
             except Exception:
                 pass
@@ -377,4 +381,4 @@ with tab_reports:
                     file_name=f"Report_{row['adm_no']}.png",
                     key=f"dl_batch_{row['adm_no']}",
                     mime="image/png"
-)
+                        )
