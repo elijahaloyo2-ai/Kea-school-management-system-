@@ -17,13 +17,13 @@ def initialize_database():
         grade TEXT NOT NULL
     )""")
     
-    # 2. Users / Staff Table
+    # 2. Users / Staff Table (Corrected columns to match streamlit_app.py perfectly)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS users (
         username TEXT PRIMARY KEY,
         full_name TEXT NOT NULL,
-        password_hash TEXT NOT NULL,
-        designation TEXT NOT NULL,
+        password TEXT NOT NULL,
+        role TEXT NOT NULL,
         photo BLOB
     )""")
     
@@ -50,40 +50,16 @@ def initialize_database():
     CREATE TABLE IF NOT EXISTS fee_payments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         adm_no TEXT,
+        name TEXT,
+        grade TEXT,
         amount REAL,
         channel TEXT,
-        payer TEXT,
-        payment_for TEXT,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY(adm_no) REFERENCES students(adm_no) ON DELETE CASCADE
+        reference TEXT,
+        allocation TEXT,
+        date_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
     )""")
     
-    # 5. Termly Global Settings Table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS global_settings (
-        key TEXT PRIMARY KEY,
-        value TEXT
-    )""")
-    cursor.execute("INSERT OR IGNORE INTO global_settings (key, value) VALUES ('opening_date', '2026-09-01')")
-    cursor.execute("INSERT OR IGNORE INTO global_settings (key, value) VALUES ('closing_date', '2026-11-28')")
-    
-    # 6. Newsletter Notices Table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS newsletter (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT,
-        content TEXT,
-        date_posted DATETIME DEFAULT CURRENT_TIMESTAMP
-    )""")
-    
-    # 7. School Contact Settings & Photo Media Tables
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS contact_info (
-        key TEXT PRIMARY KEY,
-        value TEXT
-    )""")
-    cursor.execute("INSERT OR IGNORE INTO contact_info (key, value) VALUES ('map_embed', 'https://www.google.com/maps/embed')")
-    
+    # 5. Co-Curricular Gallery Table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS co_curricular (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -91,33 +67,60 @@ def initialize_database():
         image_blob BLOB
     )""")
     
-    # Seed Primary System Administration Access Profiles
+    # 6. Teachers Directory Detail Table (For profile pictures)
     cursor.execute("""
-        INSERT OR REPLACE INTO users (username, full_name, password_hash, designation)
-        VALUES ('Admin', 'Elijah Aloyo (System Admin)', ?, 'Head of Institution (HOI)')
+    CREATE TABLE IF NOT EXISTS teachers (
+        username TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        photo BLOB
+    )""")
+    
+    # 🔐 Seed Primary System Administration Access Profiles
+    cursor.execute("""
+        INSERT OR REPLACE INTO users (username, full_name, password, role)
+        VALUES ('Admin', 'Elijah Aloyo (System Admin)', ?, 'Admin')
     """, (hash_password("Admin@2026"),))
     
     cursor.execute("""
-        INSERT OR REPLACE INTO users (username, full_name, password_hash, designation)
-        VALUES ('Hellen', 'Madam Hellen Akinyi Maisori', ?, 'Head of Institution (HOI)')
+        INSERT OR REPLACE INTO users (username, full_name, password, role)
+        VALUES ('Hellen', 'Madam Hellen Akinyi Maisori', ?, 'Admin')
     """, (hash_password("Kea@2026"),))
     
-    # Seed Default Staff Profiles
+    # 👨‍🏫 Seed Complete Staff Profiles (Including your newly added teachers)
+    # Format: (Username/First Name, Full Name, Password, System Role)
     default_teachers = [
-        ("Eliars", "Mr. Eliars Opondo", "Kea@2026", "Teacher"),
-        ("Lucas", "Mr. Lucas Onyango", "Kea@2026", "Senior teacher"),
-        ("Omwanda", "Mr. Vincent Omwanda", "Kea@2026", "Senior teacher"),
-        ("Grace", "Madam Grace Otieno", "Kea@2026", "Teacher"),
-        ("EliasA", "Mr. Elias Achiyo", "Kea@2026", "Junior Teacher"),
-        ("Valentine", "Mr. Valentine Tiberius", "Kea@2026", "Junior Teacher")
+        # Original Staff Members
+        ("Eliars", "Mr. Eliars Opondo", "Kea@2026", "Subject Teacher"),
+        ("Lucas", "Mr. Lucas Onyango", "Kea@2026", "Class Teacher"),
+        ("Omwanda", "Mr. Vincent Omwanda", "Kea@2026", "Subject Teacher"),
+        ("Grace", "Madam Grace Otieno", "Kea@2026", "Subject Teacher"),
+        ("EliasA", "Mr. Elias Achiyo", "Kea@2026", "Subject Teacher"),
+        ("Valentine", "Mr. Valentine Tiberius", "Kea@2026", "Subject Teacher"),
+        
+        # Newly Added Faculty Staff Members
+        ("Alfred", "Mr. Alfred Ndira", "Kea@2026", "Subject Teacher"),
+        ("Salmon", "Mr. Salmon Orem", "Kea@2026", "Subject Teacher"),
+        ("Charles", "Mr. Charles Onyango", "Kea@2026", "Subject Teacher"),
+        ("Herbert", "Mr. Herbert Ochieng", "Kea@2026", "Subject Teacher"),
+        ("Aaron", "Mr. Aaron Baracks Obondo", "Kea@2026", "Subject Teacher")
     ]
     
-    for user, name, pwd, desig in default_teachers:
-        cursor.execute("INSERT OR IGNORE INTO users (username, full_name, password_hash, designation) VALUES (?, ?, ?, ?)",
-                       (user, name, hash_password(pwd), desig))
+    for user, full_name, pwd, sys_role in default_teachers:
+        # Populate main security log entries
+        cursor.execute("""
+            INSERT OR REPLACE INTO users (username, full_name, password, role)
+            VALUES (?, ?, ?, ?)
+        """, (user, full_name, hash_password(pwd), sys_role))
+        
+        # Populate metadata table for profile photo attachments
+        cursor.execute("""
+            INSERT OR IGNORE INTO teachers (username, name)
+            VALUES (?, ?)
+        """, (user, full_name))
         
     conn.commit()
     conn.close()
 
 if __name__ == "__main__":
     initialize_database()
+    print("🎯 Database successfully updated and seeded with new faculty credentials!")
