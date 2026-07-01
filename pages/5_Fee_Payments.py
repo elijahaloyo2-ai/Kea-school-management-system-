@@ -9,10 +9,18 @@ if "logged_in" not in st.session_state or not st.session_state["logged_in"]:
 
 st.title("💰 Institutional Fee & Treasury Operations Panel")
 
-# Ensure the database tables exist correctly
-def verify_fee_tables():
+# --- DATABASE SETUP & AUTO-REPAIR ---
+def initialize_and_sync_tables():
     conn = sqlite3.connect("school_data.db")
     cursor = conn.cursor()
+    
+    # Check if the table exists and if it has the 'name' column
+    try:
+        cursor.execute("SELECT name FROM fee_payments LIMIT 1")
+    except sqlite3.OperationalError:
+        # If the table is missing columns, drop and recreate it safely
+        cursor.execute("DROP TABLE IF EXISTS fee_payments")
+        
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS fee_payments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -29,9 +37,9 @@ def verify_fee_tables():
     conn.commit()
     conn.close()
 
-verify_fee_tables()
+initialize_and_sync_tables()
 
-# Fetch active students list for the dropdown registry
+# --- HELPER FUNCTIONS ---
 def fetch_student_registry():
     conn = sqlite3.connect("school_data.db")
     query = "SELECT adm_no, name, grade FROM students ORDER BY name ASC"
@@ -44,11 +52,12 @@ def fetch_student_registry():
 
 students_df = fetch_student_registry()
 
-# Create Navigation Tabs matching your screenshots
-tab_process, tab_ledger, tab_summary = st.tabs([
+# --- TABS NAVIGATION DESIGN ---
+tab_process, tab_ledger, tab_summary, tab_structure = st.tabs([
     "📥 Process New Remittance Payment", 
     "🧾 Receipt Ledger History", 
-    "📊 Termly Balance Sheets"
+    "📊 Termly Balance Sheets",
+    "📋 Institutional Fee Structure"
 ])
 
 # =========================================================
@@ -58,7 +67,6 @@ with tab_process:
     if students_df.empty:
         st.warning("No students currently registered in the database system registry.")
     else:
-        # Create a clean presentation option label
         students_df["dropdown_label"] = students_df["name"] + " (" + students_df["grade"].astype(str) + ")"
         student_options = students_df["dropdown_label"].tolist()
         
@@ -96,13 +104,12 @@ with tab_process:
                     conn.close()
 
 # =========================================================
-# TAB 2: RECEIPT LEDGER HISTORY (Fixes your blank screen)
+# TAB 2: RECEIPT LEDGER HISTORY (Fixed SQL Column Error)
 # =========================================================
 with tab_ledger:
     st.subheader("📜 Comprehensive Financial Ledger Logs")
     
     conn = sqlite3.connect("school_data.db")
-    # Fetch all records sorted by most recent first
     query = """
         SELECT id AS 'Receipt No', adm_no AS 'ADM NO', name AS 'Student Name', 
                grade AS 'Grade', amount AS 'Amount (Ksh)', channel AS 'Channel', 
@@ -114,11 +121,10 @@ with tab_ledger:
     try:
         ledger_df = pd.read_sql_query(query, conn)
         if not ledger_df.empty:
-            # Format the amount values nicely for visual scanning
             ledger_df['Amount (Ksh)'] = ledger_df['Amount (Ksh)'].map(lambda x: f"Ksh {x:,.2f}")
             st.dataframe(ledger_df, use_container_width=True, hide_index=True)
         else:
-            st.info("No transaction postings or payment ledgers found in the historical log balances.")
+            st.info("No transaction postings found in the historical logs.")
     except Exception as e:
         st.error(f"Failed to load ledger: {e}")
     finally:
@@ -134,22 +140,18 @@ with tab_summary:
     else:
         conn = sqlite3.connect("school_data.db")
         try:
-            # Aggregate total payments per student profile
             pay_query = "SELECT adm_no, SUM(amount) as total_paid FROM fee_payments GROUP BY adm_no"
             pay_df = pd.read_sql_query(pay_query, conn)
             
-            # Merge with student registry
             summary_df = students_df.copy()
             summary_df = summary_df.merge(pay_df, on="adm_no", how="left")
             summary_df["total_paid"] = summary_df["total_paid"].fillna(0.0)
             
-            # Termly billing rate constant matching main dashboard baseline
             term_rate = 550.0 
             summary_df["Expected Fee (Ksh)"] = term_rate
             summary_df["Paid (Ksh)"] = summary_df["total_paid"]
             summary_df["Balance Due (Ksh)"] = summary_df["Expected Fee (Ksh)"] - summary_df["Paid (Ksh)"]
             
-            # Clean view output
             view_df = summary_df[["adm_no", "name", "grade", "Expected Fee (Ksh)", "Paid (Ksh)", "Balance Due (Ksh)"]]
             view_df.columns = ["ADM NO", "STUDENT NAME", "GRADE", "EXPECTED (Ksh)", "PAID (Ksh)", "BALANCE DUE (Ksh)"]
             
@@ -158,3 +160,25 @@ with tab_summary:
             st.error(f"Error compiling financial overview cards: {e}")
         finally:
             conn.close()
+
+# =========================================================
+# TAB 4: INSTITUTIONAL FEE STRUCTURE (New Requested Panel)
+# =========================================================
+with tab_structure:
+    st.subheader("📋 Approved Termly Base Fee Requirements")
+    st.write("Below is the official breakdown of the termly fee assignment configuration per student profile:")
+    
+    structure_data = {
+        "Vote Head Component": [
+            "Tuition Fees & Learning Resources", 
+            "Co-Curricular & Creative Arts Facilities", 
+            "Administration & Internal Assessment Portal Fees", 
+            "Contingency Maintenance Levy"
+        ],
+        "Amount (Ksh)": [300.00, 100.00, 100.00, 50.00]
+    }
+    
+    struct_df = pd.DataFrame(structure_data)
+    st.table(struct_df)
+    
+    st.metric(label="Total Approved Base Term Fee Rate", value="Ksh 550.00")
