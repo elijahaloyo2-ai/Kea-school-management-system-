@@ -111,7 +111,7 @@ else:
         col_nav4, col_nav5, col_nav6 = st.columns(3)
         col_nav4.page_link("pages/6_Teacher_Portal.py", label="Global Marks Review Deck", icon="✏️")
         col_nav5.page_link("pages/3_Results_Analysis.py", label="View School Analytics Performance", icon="📊")
-        col_nav6.page_link("pages/7_Staff_Attendance.py", label="Teacher Attendance Logs", icon="⏱️")
+        col_nav6.page_link("pages/9_Staff_Attendance.py", label="Teacher Attendance Logs", icon="⏱️")
         
     elif current_role in ["Class Teacher", "Subject Teacher"]:
         official_name, photo_blob = fetch_teacher_profile(st.session_state["username"])
