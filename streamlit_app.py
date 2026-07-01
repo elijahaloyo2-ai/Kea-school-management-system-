@@ -3,19 +3,20 @@ import sqlite3
 import hashlib
 import os
 
-# --- UPGRADED AUTOMATIC DATA DESK SECURITY BOOTLOADER ---
-# This checks if the file exists AND if the 'users' table is actually inside it.
-# If anything is missing, it automatically creates/repairs the database tables.
+# 🚨 RULE 1 OF STREAMLIT: set_page_config MUST ALWAYS RUN FIRST BEFORE ANY OTHER ST ENTRY
+st.set_page_config(page_title="KEA System - Command Deck", page_icon="🏫", layout="wide")
+
+# --- DATABASE SETUP & CORRECTION DESK ---
 def verify_and_build_database():
     db_needs_init = True
     if os.path.exists("school_data.db"):
         try:
             conn = sqlite3.connect("school_data.db")
             cursor = conn.cursor()
-            # Check if the 'users' table exists
+            # Double check if the users core database registry is healthy
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users';")
             if cursor.fetchone():
-                db_needs_init = False  # Tables exist, database is healthy!
+                db_needs_init = False  
             conn.close()
         except Exception:
             db_needs_init = True
@@ -23,11 +24,11 @@ def verify_and_build_database():
     if db_needs_init:
         try:
             from init_db import initialize_database
-            st.toast("🎯 Database tables successfully built and seeded!", icon="💾")
-        except Exception as init_error:
-            st.error(f"Failed to auto-initialize database tables: {init_error}")
+            initialize_database()
+        except Exception:
+            pass
 
-# Run the database verification function immediately on app boot
+# Safe database initialization check execution
 verify_and_build_database()
 
 # Initialize session state variables safely upfront
@@ -39,29 +40,40 @@ if "role" not in st.session_state:
     st.session_state["role"] = ""
 
 def verify_login(user, pwd):
-    conn = sqlite3.connect("school_data.db")
-    cursor = conn.cursor()
-    hashed_pwd = hashlib.sha256(pwd.encode()).hexdigest()
-    cursor.execute("SELECT role FROM users WHERE username = ? AND password = ?", (user, hashed_pwd))
-    result = cursor.fetchone()
-    conn.close()
-    return result[0] if result else None
+    try:
+        conn = sqlite3.connect("school_data.db")
+        cursor = conn.cursor()
+        hashed_pwd = hashlib.sha256(pwd.encode()).hexdigest()
+        cursor.execute("SELECT role FROM users WHERE username = ? AND password = ?", (user, hashed_pwd))
+        result = cursor.fetchone()
+        conn.close()
+        return result[0] if result else None
+    except sqlite3.OperationalError:
+        # Emergency fallback if database tables are still locked or unreadable
+        return None
 
 def fetch_teacher_profile(username):
     conn = sqlite3.connect("school_data.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT name, photo FROM teachers WHERE username = ?", (username,))
-    res = cursor.fetchone()
+    try:
+        cursor.execute("SELECT name, photo FROM teachers WHERE username = ?", (username,))
+        res = cursor.fetchone()
+    except Exception:
+        res = None
     conn.close()
     return res if res else ("Instructor", None)
 
 # --- APPLICATION AUTHENTICATION DECK LAYOUT ---
 if not st.session_state["logged_in"]:
-    st.set_page_config(page_title="KEA Management System - Login", page_icon="🔒", layout="centered")
     
     st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🏫 MC ALOYO ANALYSIS SYSTEM</h2>", unsafe_allow_html=True)
     st.markdown("<h4 style='text-align: center; color: #475569;'>KEA COMPREHENSIVE SCHOOL Command Center</h4>", unsafe_allow_html=True)
     
+    # Restored center frame profile badge logo asset
+    col_logo_center, _ = st.columns([1, 3])
+    with col_logo_center:
+        st.markdown("<div style='text-align: center; font-size: 72px;'>🏫</div>", unsafe_allow_html=True)
+
     with st.form("login_form"):
         st.subheader("🔒 Authentication Portal")
         input_user = st.text_input("Username / Access ID")
@@ -77,11 +89,9 @@ if not st.session_state["logged_in"]:
                 st.success("Authorization Granted! Provisioning secure environment modules...")
                 st.rerun()
             else:
-                st.error("Access Denied: Invalid credentials token provided.")
+                st.error("Access Denied: Invalid credentials token provided or table structure missing.")
 else:
     # --- AUTHENTICATED USER ENVIRONMENT ---
-    st.set_page_config(page_title="KEA System - Command Deck", page_icon="🏫", layout="wide")
-    
     # Sidebar control panel
     st.sidebar.markdown(f"### 👤 Active Account")
     st.sidebar.write(f"**User:** {st.session_state['username']}")
@@ -111,7 +121,7 @@ else:
         col_nav4, col_nav5, col_nav6 = st.columns(3)
         col_nav4.page_link("pages/6_Teacher_Portal.py", label="Global Marks Review Deck", icon="✏️")
         col_nav5.page_link("pages/3_Results_Analysis.py", label="View School Analytics Performance", icon="📊")
-        col_nav6.page_link("pages/9_Staff_Attendance.py", label="Teacher Attendance Logs", icon="⏱️")
+        col_nav6.page_link("pages/7_Staff_Attendance.py", label="Teacher Attendance Logs", icon="⏱️")
         
     elif current_role in ["Class Teacher", "Subject Teacher"]:
         official_name, photo_blob = fetch_teacher_profile(st.session_state["username"])
@@ -122,7 +132,7 @@ else:
             if photo_blob:
                 st.image(photo_blob, caption="Official Faculty Profile", width=170)
             else:
-                st.markdown("<div style='background-color:#F1F5F9; width:160px; height:160px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid #CBD5E1;'><span style='font-size:64px;'>👨‍🏫</span></div>\", unsafe_allow_html=True)")
+                st.markdown("<div style='background-color:#F1F5F9; width:160px; height:160px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid #CBD5E1;'><span style='font-size:64px;'>👨‍🏫</span></div>", unsafe_allow_html=True)
                 st.caption("Default Profile Asset")
 
         with col_actions:
